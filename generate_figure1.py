@@ -5,6 +5,7 @@ sys.setdefaultencoding('utf-8')
 import matplotlib.pyplot as plt
 import numpy as np
 from collections import defaultdict
+import scipy.stats
 
 def Load_Gene_Annotations(filename):
     Genes = []
@@ -44,29 +45,21 @@ def BEDGC(fib, genome):
             total += 1
             if genome[j] == 'G' or genome[j] == 'C':
                 gc += 1
-    return gc / total
+    return 100.0*gc / total
 
-def PromotorGC(genes, genome):
-    gc = 0.0; total = 0.0
-    for g in genes:
-        if g[4] == '+':
-            for j in range(0, 200):
-                total += 1
-                if genome[g[0]][g[1]-j] == 'G' or genome[g[0]][g[1]-j] == 'C':
-                    gc += 1
-        else:
-            for j in range(0, 200):
-                total += 1
-                if genome[g[0]][g[2]+j] == 'G' or genome[g[0]][g[2]+j] == 'C':
-                    gc += 1
-    return gc / total
 
+#
+#    Для работы необходимо указать актуальные расположения соответствующих файлов
+#
 
 genes = Load_Gene_Annotations('../../SacCer/Saccharomyces_cerevisiae.R64-1-1.86.gtf')
 genes_cds_fa = Load_CDS_fa('../../SacCer/Saccharomyces_cerevisiae.R64-1-1.cds.all.fa')
 genome_fa = Load_CDS_fa('../../SacCer/Saccharomyces_cerevisiae.R64-1-1.dna.toplevel.fa')
 
 gc_chr_nhp6 = []
+for i, j in zip(range(1, 16), ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII', 'XIII', 'XIV', 'XV', 'XVI']):
+    gc_chr_nhp6.append(BEDGC('/Users/jalgard/Yandex.Disk.localized/Jalgard/Legacy Projects/Nastya/Supp_Nhp6A_BEDfiles/DowellSupp_Nhp6Chr{}.bed'.format(i), genome_fa[j]))
+'''
 gc_chr_nhp6.append(BEDGC('/Users/jalgard/Yandex.Disk.localized/Jalgard/Legacy Projects/Nastya/Supp_Nhp6A_BEDfiles/DowellSupp_Nhp6Chr1.bed', genome_fa['I']))
 gc_chr_nhp6.append(BEDGC('/Users/jalgard/Yandex.Disk.localized/Jalgard/Legacy Projects/Nastya/Supp_Nhp6A_BEDfiles/DowellSupp_Nhp6Chr2.bed', genome_fa['II']))
 gc_chr_nhp6.append(BEDGC('/Users/jalgard/Yandex.Disk.localized/Jalgard/Legacy Projects/Nastya/Supp_Nhp6A_BEDfiles/DowellSupp_Nhp6Chr3.bed', genome_fa['III']))
@@ -83,7 +76,7 @@ gc_chr_nhp6.append(BEDGC('/Users/jalgard/Yandex.Disk.localized/Jalgard/Legacy Pr
 gc_chr_nhp6.append(BEDGC('/Users/jalgard/Yandex.Disk.localized/Jalgard/Legacy Projects/Nastya/Supp_Nhp6A_BEDfiles/DowellSupp_Nhp6Chr14.bed', genome_fa['XIV']))
 gc_chr_nhp6.append(BEDGC('/Users/jalgard/Yandex.Disk.localized/Jalgard/Legacy Projects/Nastya/Supp_Nhp6A_BEDfiles/DowellSupp_Nhp6Chr15.bed', genome_fa['XV']))
 gc_chr_nhp6.append(BEDGC('/Users/jalgard/Yandex.Disk.localized/Jalgard/Legacy Projects/Nastya/Supp_Nhp6A_BEDfiles/DowellSupp_Nhp6Chr16.bed', genome_fa['XVI']))
-
+'''
 gc_nhp6 = np.median(gc_chr_nhp6)
 
 global_gc = 0.0; global_len = 0.0
@@ -92,9 +85,7 @@ for i in genome_fa:
         global_len += 1
         if nuc == 'G' or nuc == 'C':
             global_gc += 1
-global_gc = global_gc/global_len
-
-promotGC = PromotorGC(genes, genome_fa)
+global_gc = 100.0*global_gc/global_len
 
 gene_dict = defaultdict(lambda : [])
 gene_per_chr = defaultdict(lambda: 0.0)
@@ -102,10 +93,8 @@ for gene in genes:
     gene_dict[gene[3]] = gene
     gene_per_chr[gene[0]] += 1
 
-
 genes_nhp6_cds = [x[:-2] for x in open('../../SacCer/nhp6A_orfBinding_geneList.txt','r').readlines()[1:]]
-genes_nhp6_prm = [x.split('\t')[4] for x in open('../../SacCer/nhp6A_bindingGrps_fig2kmeansClst.txt','r').readlines()[1:]]
-genes_non_nhp6 = [x[:-2] for x in open('../../SacCer/nhp6A_unbound_geneList.txt','r').readlines()[1:]]
+
 
 gene_len_bins = defaultdict(lambda: [])
 for i in genes_cds_fa:
@@ -119,7 +108,7 @@ for i in genes_cds_fa:
     for nuc in genes_cds_fa[i]:
         if nuc == 'G' or nuc == 'C':
             gc+=1
-    gene_gc_bins[l/50].append(gc/len(genes_cds_fa[i]))
+    gene_gc_bins[l/50].append(100.0*gc/len(genes_cds_fa[i]))
 
 gene_name_bins = defaultdict(lambda: [])
 for i in genes_cds_fa:
@@ -138,10 +127,30 @@ def pick_short(nhp6, all):
         result.extend(random.sample(all[i], nhp6[i]))
     return result
 
+def find_nieghbor_GC(gene_list, genes):
+    genes.sort(key=lambda x: x[1])
+    genes.sort(key=lambda x: x[0])
+    global genome_fa
+    dists = []
+    for g1 in gene_list:
+        for i, g2 in enumerate(genes[1:-1]):
+            if g2[3] == g1:
+                gc = 0.0
+                for nuc in genome_fa[g2[0]][g2[1]-200:g2[1]]:
+                    if nuc == 'G' or nuc == 'C':
+                        gc += 1
+                for nuc in genome_fa[g2[0]][g2[2]:g2[2]+200]:
+                    if nuc == 'G' or nuc == 'C':
+                        gc += 1
+                dists.append(100.0*gc /400.0)
+
+    return dists
+
 
 gc_content_cds = []
 gc_content_all = []
 gc_content_srt = []
+
 for i in genes_cds_fa:
     if i in genes_nhp6_cds:
         gc = 0.0; at = 0.0; total = 0
@@ -151,7 +160,7 @@ for i in genes_cds_fa:
                 gc+=1
             else:
                 at+=1
-        gc_content_cds.append(gc/total)
+        gc_content_cds.append(100.0*gc/total)
 
     else:
         gc = 0.0; at = 0.0; total = 0
@@ -161,7 +170,7 @@ for i in genes_cds_fa:
                 gc+=1
             else:
                 at+=1
-        gc_content_all.append(gc/total)
+        gc_content_all.append(100.0*gc/total)
 
 # bootstrap short genes
 short_gene_bootstrap = []
@@ -174,9 +183,47 @@ short_q25 = [np.percentile(np.array(x,dtype=np.float64), 25) for x in short_gene
 short_q50 = [np.percentile(np.array(x,dtype=np.float64), 50) for x in short_gene_bootstrap]
 short_q75 = [np.percentile(np.array(x,dtype=np.float64), 75) for x in short_gene_bootstrap]
 
-fig, ax = plt.subplots(2, 2)
 
-plt.sca(ax[0, 1])
+#
+#   Генерация рисунка 1(в)
+#
+#   GC рядом с генами
+#
+
+
+IGDnhp6 = find_nieghbor_GC(genes_nhp6_cds, genes)
+IGDall = find_nieghbor_GC([x[3] for x in genes], genes)
+IGDshort = find_nieghbor_GC(pick_short(gene_len_dist_nhp6, gene_name_bins), genes)
+
+plt.clf(); plt.cla()
+axes = plt.gca()
+IGDB = plt.boxplot([IGDnhp6, IGDall, IGDshort], patch_artist=True, showfliers=False)
+IGDB['boxes'][0].set(facecolor="#FFFFFF", linewidth=2)
+IGDB['boxes'][1].set(facecolor="#BBBBBB", linewidth=2)
+IGDB['boxes'][1].set(hatch = '//')
+IGDB['boxes'][2].set(facecolor="#555555", linewidth=2)
+
+IGDB['medians'][0].set(color="#000000")
+IGDB['medians'][1].set(color="#000000")
+
+IGDB['medians'][2].set(color="#000000")
+
+plt.axhline(global_gc, ls='-', c='#888888', lw=0.5)
+plt.axhline(gc_nhp6, ls='--', c='#555555', lw=0.5)
+
+axes.set_title('GC состав вокруг гена')
+axes.set_xlabel('Выборка генов')
+axes.set_ylabel('% GC')
+
+plt.savefig('Рисунок1в.png', dpi=1000)
+
+#
+#   Генерация рисунка 1.Б
+#
+#   выборка 176 коротких генов из генома, оценка GC-содеражния и усреднение
+#
+
+plt.clf(); plt.cla()
 axes = plt.gca()
 D = plt.boxplot([gc_content_cds, gc_content_all, short_gene_bootstrap[0]], patch_artist=True, showfliers=False)
 
@@ -194,26 +241,39 @@ D['caps'][5].set_ydata(np.array([np.average(short_q90), np.average(short_q90)]))
 
 
 D['boxes'][0].set(facecolor="#FFFFFF", linewidth=2)
-D['boxes'][1].set(facecolor="#444444", linewidth=1)
-D['boxes'][2].set(facecolor="#888888", linewidth=1)
+D['boxes'][1].set(facecolor="#BBBBBB", linewidth=2)
+D['boxes'][1].set(hatch = '//')
+D['boxes'][2].set(facecolor="#555555", linewidth=2)
 
 D['medians'][0].set(color="#000000")
 D['medians'][1].set(color="#000000")
 D['medians'][2].set(color="#000000")
 
-plt.axhline(global_gc, ls='--', c='#000000')
-plt.axhline(gc_nhp6, ls=':', c='#000000')
-plt.axhline(promotGC, ls='-', c='#000000')
-
+plt.axhline(global_gc, ls='-', c='#888888', lw=0.5)
+plt.axhline(gc_nhp6, ls='--', c='#555555', lw=0.5)
 
 axes.set_title('GC состав')
 axes.set_xlabel('Выборка генов')
 axes.set_ylabel('% GC')
 
+z1, p1 = scipy.stats.mannwhitneyu(gc_content_cds, short_gene_bootstrap[0])
+print z1, p1
+
+
+z2, p2 = scipy.stats.mannwhitneyu(gc_content_all, short_gene_bootstrap[0])
+print z2, p2
+plt.savefig('Рисунок1б.tiff', dpi=600)
 
 
 
-plt.sca(ax[0, 0])
+#
+#   Генерация рисунка 1.А
+#
+#   Распределение длин выборок генов, идентичности распределения
+#   взятых случайно коротких генов с генами списка nhp6+
+#
+
+plt.clf(); plt.cla()
 axes = plt.gca()
 
 gene_len_all = []
@@ -227,40 +287,70 @@ for i in genes_cds_fa:
     else:
         gene_len_all.append(len(genes_cds_fa[i]))
 
+print np.median(gene_len_nhp6)
+print np.median(gene_len_all)
+print np.average(gene_len_nhp6)
+print np.average(gene_len_all)
 
 DL = plt.boxplot([gene_len_nhp6, gene_len_all, gene_len_small], patch_artist=True, showfliers=False)
 
 DL['boxes'][0].set(facecolor="#FFFFFF", linewidth=2)
-DL['boxes'][1].set(facecolor="#444444", linewidth=1)
-DL['boxes'][2].set(facecolor="#888888", linewidth=1)
+DL['boxes'][1].set(facecolor="#BBBBBB", linewidth=2)
+DL['boxes'][1].set(hatch = '//')
+DL['boxes'][2].set(facecolor="#555555", linewidth=2)
 
 DL['medians'][0].set(color="#000000")
 DL['medians'][1].set(color="#000000")
 DL['medians'][2].set(color="#000000")
 
-axes.set_ylim([0,2300])
 axes.set_title('Длина гена')
 axes.set_xlabel('Выборка генов')
 axes.set_ylabel('Длина, п.н.')
 
 
+z3, p3 = scipy.stats.mannwhitneyu(gene_len_all, gene_len_nhp6)
+print z3, p3
 
-plt.sca(ax[1, 0])
+z4, p4 = scipy.stats.mannwhitneyu(gene_len_small, gene_len_nhp6)
+print z4, p4
+
+plt.savefig('Рисунок1а.png', dpi=1000)
+
+
+#
+#   Генерация рисунка 1.Г
+#
+#    анализ частот использования кодонов генами из разных групп
+#
+
+plt.clf(); plt.cla()
 axes = plt.gca()
 
-short0 = pick_short(gene_len_dist_nhp6, gene_name_bins)
+short_bootstrap = []
+for i in range(100):
+    short_bootstrap.append(pick_short(gene_len_dist_nhp6, gene_name_bins))
+
+CUshort_bootstrap = defaultdict(lambda: defaultdict(lambda: 0.0))
+
+for ii, i in enumerate(short_bootstrap):
+    for j in i:
+        for k in range(0, len(genes_cds_fa[j]), 3):
+            CUshort_bootstrap[ii][genes_cds_fa[j][k:k+3]] += 1
 
 CUnph6 = defaultdict(lambda: 0)
 CUshort = defaultdict(lambda: 0)
 CUall = defaultdict(lambda: 0)
 
+
+for codon in CUshort_bootstrap[0]:
+    usage = [CUshort_bootstrap[x][codon] for x in range(100)]
+    CUshort[codon] = np.average(usage)
+
+
 for i in genes_cds_fa:
     if i in genes_nhp6_cds:
         for j in range(0, len(genes_cds_fa[i]), 3):
             CUnph6[genes_cds_fa[i][j:j+3]] += 1
-    elif i in short0:
-        for j in range(0, len(genes_cds_fa[i]), 3):
-            CUshort[genes_cds_fa[i][j:j+3]] += 1
     else:
         for j in range(0, len(genes_cds_fa[i]), 3):
             CUall[genes_cds_fa[i][j:j+3]] += 1
@@ -269,20 +359,86 @@ CUdata_nhp6 = [CUnph6[x] for x in sorted(CUnph6)]
 CUdata_all = [CUall[x] for x in sorted(CUnph6)]
 CUdata_short = [CUshort[x] for x in sorted(CUnph6)]
 
-Trip1 = ['#FF0000' if 'CG' in x or 'GC' in x else '#000000' for x in sorted(CUnph6) ]
-Trip2 = ['#FF0000' if 'G' in x else '#000000' for x in sorted(CUnph6) ]
-
 CUdata_nhp6 = [float(x)/sum(CUdata_nhp6) for x in CUdata_nhp6]
 CUdata_all = [float(x)/sum(CUdata_all) for x in CUdata_all]
 CUdata_short = [float(x)/sum(CUdata_short) for x in CUdata_short]
 
+
 plt.scatter(CUdata_all, CUdata_nhp6, c='#FFFFFF', edgecolor='#000000', marker='^', s=30)
 plt.scatter(CUdata_all, CUdata_short, c='#000000', edgecolor='#000000', marker='s', s=10)
 
+
 axes.set_ylim([0.0, 0.06])
 axes.set_xlim([0.0, 0.06])
-axes.set_title('Частота использования триплетов')
-axes.set_xlabel('частота в (2)')
-axes.set_ylabel('частота в (1) / (3)')
+axes.set_title(u'Частота использования кодонов')
+axes.set_xlabel(u'Частота во всех генах')
+axes.set_ylabel(u'Частота в nhp6+ / коротких генах')
 
-plt.show()
+plt.savefig('Рисунок1г.png', dpi=1000)
+
+
+
+#
+#   Генерация рисунка 1.Г
+#
+#    анализ частот использования аминокислот генами из разных групп
+#
+
+
+plt.clf(); plt.cla()
+axes = plt.gca()
+codontable = {"TTT":"F", "TTC":"F", "TTA":"L", "TTG":"L",
+    "TCT":"S", "TCC":"S", "TCA":"S", "TCG":"S",
+    "TAT":"Y", "TAC":"Y", "TAA":"STOP", "TAG":"STOP",
+    "TGT":"C", "TGC":"C", "TGA":"STOP", "TGG":"W",
+    "CTT":"L", "CTC":"L", "CTA":"L", "CTG":"L",
+    "CCT":"P", "CCC":"P", "CCA":"P", "CCG":"P",
+    "CAT":"H", "CAC":"H", "CAA":"Q", "CAG":"Q",
+    "CGT":"R", "CGC":"R", "CGA":"R", "CGG":"R",
+    "ATT":"I", "ATC":"I", "ATA":"I", "ATG":"M",
+    "ACT":"T", "ACC":"T", "ACA":"T", "ACG":"T",
+    "AAT":"N", "AAC":"N", "AAA":"K", "AAG":"K",
+    "AGT":"S", "AGC":"S", "AGA":"R", "AGG":"R",
+    "GTT":"V", "GTC":"V", "GTA":"V", "GTG":"V",
+    "GCT":"A", "GCC":"A", "GCA":"A", "GCG":"A",
+    "GAT":"D", "GAC":"D", "GAA":"E", "GAG":"E",
+    "GGT":"G", "GGC":"G", "GGA":"G", "GGG":"G",}
+
+AAfull = { "A":"Ala", "R":"Arg", "N":"Asn", "D":"Asp", "C":"Cys",
+"E":"Glu", "Q":"Gln", "G":"Gly", "H":"His", "I":"Ile",
+"L":"Leu", "K":"Lys", "M":"Met", "F":"Phe", "P":"Pro",
+"S":"Ser", "T":"Thr", "W":"Trp", "V":"Val", "Y":"Tyr",
+"STOP":"",}
+
+AA = list(set([codontable[x] for x in codontable.keys()]))
+AAnhp6 = defaultdict(lambda: [])
+AAall = defaultdict(lambda: [])
+AAshort = defaultdict(lambda: [])
+
+for i, x in enumerate(sorted(CUnph6)):
+    AAnhp6[codontable[x]].append(CUdata_nhp6[i])
+    AAall[codontable[x]].append(CUdata_all[i])
+    AAshort[codontable[x]].append(CUdata_short[i])
+
+AAnhp6D = []
+AAallD = []
+AAshortD = []
+for i in AA:
+    AAnhp6D.append(np.average(AAnhp6[i]))
+    AAallD.append(np.average(AAall[i]))
+    AAshortD.append(np.average(AAshort[i]))
+
+
+plt.scatter(AAallD, AAnhp6D, c='#FFFFFF', edgecolor='#000000', marker='^', s=30)
+plt.scatter(AAallD, AAshortD, c='#000000', edgecolor='#000000', marker='s', s=10)
+
+for i, txt in enumerate(AA):
+    axes.annotate(AAfull[txt], (AAallD[i],AAnhp6D[i]))
+
+axes.set_ylim([0.0, 0.045])
+axes.set_xlim([0.0, 0.045])
+axes.set_title(u'Частота использования аминокислот')
+axes.set_xlabel(u'Частота во всех генах')
+axes.set_ylabel(u'Частота в nhp6+ / коротких генах')
+
+plt.savefig('Рисунок1д.png', dpi=1000)
