@@ -262,7 +262,7 @@ print z1, p1
 
 z2, p2 = scipy.stats.mannwhitneyu(gc_content_all, short_gene_bootstrap[0])
 print z2, p2
-plt.savefig('Рисунок1б.tiff', dpi=600)
+plt.savefig('Рисунок1б.png', dpi=1000)
 
 
 
