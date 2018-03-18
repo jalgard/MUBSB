@@ -17,3 +17,7 @@ binding intervals (.bed) from Dowell et al (supplement):
 Chromatin-dependent binding of the S. cerevisiae HMGB protein 
 Nhp6A affects nucleosome dynamics and transcription // 
 Genes Dev. 2010. Vol. 24. N 18. P. 2031-2042.
+
+File with the list of the genes (nhp6A_orfBinding_geneList.txt) 
+that bind Nhp6A in CDS was kindly provided by Noa Dowell and is
+available upon request. 
